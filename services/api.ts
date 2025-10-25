@@ -106,6 +106,9 @@ class MockApiService {
 
     async register(email: string, password_hash: string): Promise<{ token: string; user: User }> {
         await simulateNetworkDelay();
+        if (email === 'owner@lovelink.app') {
+            throw new Error('This email address is reserved.');
+        }
         if (users.find(u => u.email === email)) {
             throw new Error('User with this email already exists.');
         }
@@ -126,7 +129,32 @@ class MockApiService {
 
     async login(email: string, password_hash: string): Promise<{ token: string; user: User }> {
         await simulateNetworkDelay();
-        const user = users.find(u => u.email === email);
+        const isOwner = email === 'owner@lovelink.app' && password_hash === 'password123';
+        
+        let user = users.find(u => u.email === email);
+
+        if (isOwner) {
+            if (!user) { // First time owner login
+                user = {
+                    id: `user_owner_${Date.now()}`,
+                    email,
+                    profileComplete: false,
+                    profile: null,
+                    subscriptionTier: 'platinum',
+                    superLikes: 99,
+                    boosts: 10,
+                };
+                users.push(user);
+            } else { // Existing owner, refresh premium features
+                user.subscriptionTier = 'platinum';
+                user.superLikes = 99;
+                user.boosts = 10;
+            }
+            saveToLocalStorage();
+            const token = `mock_jwt_${user.id}`;
+            return { token, user };
+        }
+
         if (!user) {
             throw new Error('Invalid credentials.');
         }
