@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mockApi, quizQuestions } from '../services/api';
@@ -30,7 +29,7 @@ const OnboardingPage: React.FC = () => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       if (photos.length + files.length > 5) {
-        alert('You can upload a maximum of 5 photos.');
+        setError('You can upload a maximum of 5 photos.');
         return;
       }
       setPhotos(prev => [...prev, ...files]);
@@ -90,6 +89,10 @@ const OnboardingPage: React.FC = () => {
       navigate('/discover');
     } catch (err: any) {
       setError(err.message || 'Failed to update profile.');
+      // If photo fails, stay on step 2
+      if (err.message.toLowerCase().includes('photo')) {
+          setStep(2);
+      }
     } finally {
       setLoading(false);
     }
@@ -126,6 +129,7 @@ const OnboardingPage: React.FC = () => {
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Photos (up to 5)</label>
+                     <p className="text-xs text-gray-500 mb-2">Your first photo is your main profile picture. All photos will be checked by our AI for safety.</p>
                     <div className="grid grid-cols-3 gap-2">
                         {photos.map((photo, index) => (
                             <div key={index} className="relative aspect-square rounded-lg overflow-hidden">

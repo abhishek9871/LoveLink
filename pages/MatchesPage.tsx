@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Match, Profile } from '../types';
@@ -55,7 +54,12 @@ const MatchesPage: React.FC = () => {
           <Avatar src={match.user.photos[0]} alt={match.user.name} size="md" />
           <div className="ml-4 flex-grow overflow-hidden">
             <p className="font-bold text-text-primary">{match.user.name}</p>
-            <p className="text-sm text-text-secondary truncate">{match.lastMessage}</p>
+            <div className="flex items-center gap-1">
+                {match.needsNudge && (
+                    <svg className="w-4 h-4 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
+                )}
+                <p className="text-sm text-text-secondary truncate">{match.lastMessage}</p>
+            </div>
           </div>
           {match.unreadCount > 0 && (
             <div className="w-6 h-6 bg-primary text-white text-xs font-bold rounded-full flex items-center justify-center">

@@ -1,6 +1,6 @@
 {
   "name": "LoveLink - AI Dating",
-  "description": "A modern, AI-driven dating web application. This is Sprint 2, adding AI matchmaking with a personality quiz, AI-generated icebreakers, and WebRTC video chat capabilities.",
+  "description": "A modern, AI-driven dating web application. This is the final production-ready version (Sprint 4), featuring enhanced security (AI moderation, reporting), full PWA offline support, and an admin dashboard.",
   "requestFramePermissions": [
     "camera",
     "microphone"

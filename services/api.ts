@@ -1,5 +1,4 @@
-
-import { User, Profile, SwipeProfile, Match, Message, SubscriptionTier, VirtualGift } from '../types';
+import { User, Profile, SwipeProfile, Match, Message, SubscriptionTier, VirtualGift, AdminUserMetrics, AdminRevenueMetrics, AdminSafetyMetrics, AdminSystemHealth } from '../types';
 
 // --- SPRINT 3: PREMIUM FEATURES ---
 export const FEATURES = {
@@ -30,6 +29,9 @@ let profiles: Profile[] = JSON.parse(localStorage.getItem('ll_profiles') || '[]'
 let matches: { id: string; user1_id: string; user2_id: string; status: 'pending' | 'matched' | 'superlike' }[] = JSON.parse(localStorage.getItem('ll_matches') || '[]');
 let messages: Message[] = JSON.parse(localStorage.getItem('ll_messages') || '[]');
 let swipes: { userId: string, targetUserId: string, action: string, timestamp: number }[] = JSON.parse(localStorage.getItem('ll_swipes') || '[]');
+let reports: { reporterId: string, reportedId: string, reason: string, timestamp: number }[] = JSON.parse(localStorage.getItem('ll_reports') || '[]');
+let blocks: { blockerId: string, blockedId: string }[] = JSON.parse(localStorage.getItem('ll_blocks') || '[]');
+
 
 const saveToLocalStorage = () => {
     localStorage.setItem('ll_users', JSON.stringify(users));
@@ -37,6 +39,8 @@ const saveToLocalStorage = () => {
     localStorage.setItem('ll_matches', JSON.stringify(matches));
     localStorage.setItem('ll_messages', JSON.stringify(messages));
     localStorage.setItem('ll_swipes', JSON.stringify(swipes));
+    localStorage.setItem('ll_reports', JSON.stringify(reports));
+    localStorage.setItem('ll_blocks', JSON.stringify(blocks));
 }
 
 // --- MOCK DATA SEEDING ---
@@ -68,6 +72,25 @@ const simulateNetworkDelay = (delay = 500) => new Promise(res => setTimeout(res,
 
 class MockApiService {
     
+    // --- SPRINT 4: AI Security Simulation ---
+    private async _verifyPhoto(photo: File | string): Promise<{verified: boolean, reason?: string}> {
+        await simulateNetworkDelay(400);
+        // ~5% chance of failing verification
+        if (Math.random() < 0.05) {
+            return { verified: false, reason: 'No clear face detected in the photo.' };
+        }
+        return { verified: true };
+    }
+
+    private async _moderateContent(content: File | string): Promise<{flagged: boolean, reason?: string}> {
+        await simulateNetworkDelay(400);
+         // ~5% chance of being flagged
+        if (Math.random() < 0.05) {
+            return { flagged: true, reason: 'Photo violates our content policy.' };
+        }
+        return { flagged: false };
+    }
+
     async register(email: string, password_hash: string): Promise<{ token: string; user: User }> {
         await simulateNetworkDelay();
         if (users.find(u => u.email === email)) {
@@ -114,6 +137,17 @@ class MockApiService {
 
     async updateProfile(userId: string, profileData: Omit<Profile, 'userId' | 'photos'> & { photos: (string | File)[] }): Promise<Profile> {
         await simulateNetworkDelay();
+        
+        // --- SPRINT 4: Security checks ---
+        for (const photo of profileData.photos) {
+            if (photo instanceof File) { // Only check new files
+                const verification = await this._verifyPhoto(photo);
+                if (!verification.verified) throw new Error(verification.reason);
+                const moderation = await this._moderateContent(photo);
+                if (moderation.flagged) throw new Error(moderation.reason);
+            }
+        }
+
         const photoUrls = await Promise.all(profileData.photos.map(async (p) => {
             if (typeof p === 'string') return p;
             return new Promise<string>((resolve) => {
@@ -167,11 +201,14 @@ class MockApiService {
         const swipedUserIds = swipes
             .filter(s => s.userId === userId)
             .map(s => s.targetUserId);
+
+        const blockedUserIds = blocks
+            .filter(b => b.blockerId === userId)
+            .map(b => b.blockedId);
         
-        const potentialProfiles = profiles.filter(p => p.userId !== userId && !swipedUserIds.includes(p.userId));
+        const potentialProfiles = profiles.filter(p => p.userId !== userId && !swipedUserIds.includes(p.userId) && !blockedUserIds.includes(p.userId));
 
         const scoredProfiles = potentialProfiles.map(p => {
-            // Check if this user super-liked us
             const isSuperLike = matches.some(m => m.user1_id === p.userId && m.user2_id === userId && m.status === 'superlike');
             return {
                 ...p,
@@ -180,7 +217,6 @@ class MockApiService {
             }
         });
 
-        // Prioritize super likes, then boosted users (simulation), then compatibility
         scoredProfiles.sort((a, b) => {
             if (a.isSuperLike && !b.isSuperLike) return -1;
             if (!a.isSuperLike && b.isSuperLike) return 1;
@@ -204,11 +240,9 @@ class MockApiService {
 
     async swipe(userId: string, targetUserId: string, action: 'like' | 'pass' | 'superlike'): Promise<{ match: boolean, icebreaker?: string, matchedProfile?: Profile, error?: string }> {
         await simulateNetworkDelay(200);
-
         const currentUser = users.find(u => u.id === userId)!;
         const featureLimits = FEATURES[currentUser.subscriptionTier];
         
-        // --- Enforce limits ---
         if (action === 'like') {
             const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
             const recentLikes = swipes.filter(s => s.userId === userId && s.action === 'like' && s.timestamp > twentyFourHoursAgo);
@@ -238,6 +272,13 @@ class MockApiService {
             const matchedProfile = profiles.find(p => p.userId === targetUserId)!;
             const icebreaker = await this._generateIcebreaker(currentUserProfile, matchedProfile);
             saveToLocalStorage();
+            // SPRINT 4: Push notification simulation
+            if ('Notification' in window && Notification.permission === 'granted') {
+                 new Notification("It's a Match!", {
+                    body: `You and ${matchedProfile.name} have liked each other.`,
+                    icon: matchedProfile.photos[0]
+                });
+            }
             return { match: true, icebreaker, matchedProfile };
         } else {
             matches.push({ id: `match_${Date.now()}`, user1_id: userId, user2_id: targetUserId, status: action === 'superlike' ? 'superlike' : 'pending' });
@@ -263,9 +304,8 @@ class MockApiService {
         if (lastSwipeIndex === -1) return { success: false };
 
         const lastSwipe = swipes[lastSwipeIndex];
-        swipes.splice(lastSwipeIndex, 1); // Remove from history
+        swipes.splice(lastSwipeIndex, 1);
 
-        // Also remove the "match" entry if one was created
         let matchIndex = -1;
         for (let i = matches.length - 1; i >= 0; i--) {
             const m = matches[i];
@@ -280,26 +320,38 @@ class MockApiService {
         if (!profile) return { success: false };
 
         saveToLocalStorage();
-        return { success: true, profile: { ...profile, compatibilityScore: 99 } }; // Recalculate score if needed
+        return { success: true, profile: { ...profile, compatibilityScore: 99 } };
     }
 
     async getMatches(userId: string): Promise<Match[]> {
         await simulateNetworkDelay();
+        const blockedUserIds = blocks.filter(b => b.blockerId === userId).map(b => b.blockedId);
         const matchedIds = matches
             .filter(m => (m.user1_id === userId || m.user2_id === userId) && m.status === 'matched')
-            .map(m => m.user1_id === userId ? m.user2_id : m.user1_id);
+            .map(m => m.user1_id === userId ? m.user2_id : m.user1_id)
+            .filter(id => !blockedUserIds.includes(id));
         
         const matchProfiles = profiles.filter(p => matchedIds.includes(p.userId));
+        
+        const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
 
         return matchProfiles.map(p => {
             const conversationMessages = messages.filter(msg => (msg.senderId === userId && msg.receiverId === p.userId) || (msg.senderId === p.userId && msg.receiverId === userId));
             const lastMessage = conversationMessages.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            
+            // SPRINT 4: Anti-ghosting nudge logic
+            let needsNudge = false;
+            if (lastMessage && new Date(lastMessage.timestamp).getTime() < threeDaysAgo && lastMessage.senderId !== userId) {
+                needsNudge = true;
+            }
+
             return {
                 id: `match_${userId}_${p.userId}`,
                 user: p,
                 lastMessage: lastMessage?.gift ? `${lastMessage.senderId === userId ? 'You sent a' : 'Sent you a'} ${lastMessage.gift.name}` : lastMessage?.content || 'You matched! Say hello.',
                 timestamp: lastMessage ? lastMessage.timestamp : new Date().toISOString(),
-                unreadCount: conversationMessages.filter(msg => msg.receiverId === userId && !msg.read).length
+                unreadCount: conversationMessages.filter(msg => msg.receiverId === userId && !msg.read).length,
+                needsNudge,
             };
         }).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }
@@ -340,7 +392,6 @@ class MockApiService {
         messages.push(newMessage);
         saveToLocalStorage();
 
-        // Simulate a reply
         setTimeout(() => {
             const reply: Message = {
                 id: `msg_${Date.now() + 1}`,
@@ -353,6 +404,12 @@ class MockApiService {
             messages.push(reply);
             saveToLocalStorage();
             window.dispatchEvent(new CustomEvent('newMessage', { detail: reply }));
+            if ('Notification' in window && Notification.permission === 'granted') {
+                 new Notification(`New message from ${profiles.find(p=>p.userId === receiverId)?.name}`, {
+                    body: reply.content,
+                    icon: profiles.find(p=>p.userId === receiverId)?.photos[0]
+                });
+            }
         }, 2000);
 
         return newMessage;
@@ -365,7 +422,6 @@ class MockApiService {
         return user;
     }
 
-    // --- SPRINT 3: MONETIZATION APIS ---
     async subscribe(userId: string, tier: SubscriptionTier): Promise<User> {
         await simulateNetworkDelay();
         const user = users.find(u => u.id === userId);
@@ -400,6 +456,51 @@ class MockApiService {
         }, 30 * 60 * 1000);
 
         return user;
+    }
+
+    // --- SPRINT 4: Safety & GDPR ---
+    async reportUser(reporterId: string, reportedId: string, reason: string): Promise<{success: boolean}> {
+        await simulateNetworkDelay();
+        reports.push({ reporterId, reportedId, reason, timestamp: Date.now() });
+        saveToLocalStorage();
+        return { success: true };
+    }
+
+    async blockUser(blockerId: string, blockedId: string): Promise<{success: boolean}> {
+        await simulateNetworkDelay();
+        if (!blocks.some(b => b.blockerId === blockerId && b.blockedId === blockedId)) {
+            blocks.push({ blockerId, blockedId });
+        }
+        // Remove any existing match
+        matches = matches.filter(m => !( (m.user1_id === blockerId && m.user2_id === blockedId) || (m.user1_id === blockedId && m.user2_id === blockerId) ));
+        saveToLocalStorage();
+        return { success: true };
+    }
+
+    async exportUserData(userId: string): Promise<any> {
+        await simulateNetworkDelay();
+        const user = users.find(u => u.id === userId);
+        const profile = profiles.find(p => p.userId === userId);
+        const userMatches = matches.filter(m => m.user1_id === userId || m.user2_id === userId);
+        const userMessages = messages.filter(m => m.senderId === userId || m.receiverId === userId);
+        const userSwipes = swipes.filter(s => s.userId === userId);
+        return { user, profile, matches: userMatches, messages: userMessages, swipes: userSwipes };
+    }
+
+    // --- SPRINT 4: Admin Dashboard ---
+    async getAdminMetrics(): Promise<{
+        users: AdminUserMetrics,
+        revenue: AdminRevenueMetrics,
+        safety: AdminSafetyMetrics,
+        system: AdminSystemHealth
+    }> {
+        await simulateNetworkDelay(800);
+        return {
+            users: { dau: 1234, mau: 10432, newUsers: 56, retentionRate: 62.5 },
+            revenue: { mrr: 24503, arpu: 2.35, ltv: 45.50, conversionRate: 8.2 },
+            safety: { openReports: reports.length, avgResponseTimeHours: 6, moderationActions: 112 },
+            system: { apiLatency: 180, errorRate: 0.8, uptime: 99.9 }
+        }
     }
 }
 

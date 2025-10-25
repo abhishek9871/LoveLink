@@ -1,4 +1,3 @@
-
 export type SubscriptionTier = 'free' | 'plus' | 'gold' | 'platinum';
 
 export interface User {
@@ -29,6 +28,7 @@ export interface Match {
   lastMessage: string;
   timestamp: string;
   unreadCount: number;
+  needsNudge?: boolean;
 }
 
 export interface VirtualGift {
@@ -50,4 +50,31 @@ export interface Message {
 export interface SwipeProfile extends Profile {
     compatibilityScore?: number;
     isSuperLike?: boolean; // Indicates if this profile Super Liked the current user
+}
+
+// Sprint 4: Admin Dashboard Types
+export interface AdminUserMetrics {
+    mau: number;
+    dau: number;
+    retentionRate: number;
+    newUsers: number;
+}
+
+export interface AdminRevenueMetrics {
+    mrr: number;
+    arpu: number;
+    ltv: number;
+    conversionRate: number;
+}
+
+export interface AdminSafetyMetrics {
+    openReports: number;
+    avgResponseTimeHours: number;
+    moderationActions: number;
+}
+
+export interface AdminSystemHealth {
+    apiLatency: number;
+    errorRate: number;
+    uptime: number;
 }

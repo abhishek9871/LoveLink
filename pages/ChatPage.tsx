@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Message, Profile } from '../types';
@@ -8,8 +7,9 @@ import MessageBubble from '../components/chat/MessageBubble';
 import ChatInput from '../components/chat/ChatInput';
 import Spinner from '../components/ui/Spinner';
 import Avatar from '../components/ui/Avatar';
-import { BackIcon, VideoIcon } from '../components/icons';
+import { BackIcon, VideoIcon, MoreIcon } from '../components/icons';
 import GiftMessage from '../components/chat/GiftMessage';
+import ReportBlockModal from '../components/profile/ReportBlockModal';
 
 const ChatPage: React.FC = () => {
   const { userId: targetUserId } = useParams<{ userId: string }>();
@@ -19,6 +19,7 @@ const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [matchProfile, setMatchProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isReportModalOpen, setReportModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -75,6 +76,17 @@ const ChatPage: React.FC = () => {
   }
 
   return (
+    <>
+    {isReportModalOpen && targetUserId && (
+        <ReportBlockModal 
+            targetUser={matchProfile}
+            onClose={() => setReportModalOpen(false)}
+            onBlock={() => {
+                setReportModalOpen(false);
+                navigate('/matches');
+            }}
+        />
+    )}
     <div className="flex flex-col h-full bg-white">
       <header className="flex items-center p-3 border-b border-gray-200 sticky top-0 bg-white/80 backdrop-blur-sm z-10">
         <button onClick={() => navigate('/matches')} className="p-2 text-gray-600">
@@ -84,6 +96,9 @@ const ChatPage: React.FC = () => {
         <h2 className="ml-3 font-bold text-lg flex-grow">{matchProfile.name}</h2>
         <button onClick={() => navigate(`/video/${targetUserId}`)} className="p-2 text-primary hover:bg-primary/10 rounded-full">
             <VideoIcon className="w-6 h-6"/>
+        </button>
+        <button onClick={() => setReportModalOpen(true)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full">
+            <MoreIcon className="w-6 h-6"/>
         </button>
       </header>
       <div className="flex-grow p-4 overflow-y-auto space-y-2">
@@ -98,6 +113,7 @@ const ChatPage: React.FC = () => {
       </div>
       <ChatInput onSend={handleSendMessage} />
     </div>
+    </>
   );
 };
 

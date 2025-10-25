@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { User } from '../types';
 import { mockApi } from '../services/api';
@@ -30,6 +29,18 @@ const ProfilePage: React.FC = () => {
     useEffect(() => {
         fetchProfile();
     }, [fetchProfile]);
+
+    const handleDataExport = async () => {
+        if (!user) return;
+        const data = await mockApi.exportUserData(user.id);
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+            JSON.stringify(data, null, 2)
+        )}`;
+        const link = document.createElement("a");
+        link.href = jsonString;
+        link.download = "lovelink_data.json";
+        link.click();
+    };
     
     if (loading) {
         return <div className="flex justify-center items-center h-full"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
@@ -73,6 +84,11 @@ const ProfilePage: React.FC = () => {
                     </div>
                 </div>
             </div>
+            
+            <div className="bg-white p-4 rounded-xl shadow-sm space-y-2">
+                <h2 className="font-bold text-lg">Settings</h2>
+                <Button variant="ghost" onClick={handleDataExport} className="!justify-start !p-2 !font-medium text-text-secondary">Export My Data</Button>
+            </div>
 
             <div className="bg-white p-4 rounded-xl shadow-sm">
                 <h2 className="font-bold text-lg mb-2">About Me</h2>
@@ -98,6 +114,9 @@ const ProfilePage: React.FC = () => {
                 <Button variant="secondary" onClick={logout}>
                     Logout
                 </Button>
+                 <div className="text-center mt-4">
+                    <Link to="/admin" className="text-sm text-gray-400 hover:text-gray-600">Admin Dashboard</Link>
+                </div>
             </div>
         </div>
     );

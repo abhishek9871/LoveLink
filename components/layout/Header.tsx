@@ -1,8 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { LogoIcon, BoostIcon } from '../icons';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+    isOnline: boolean;
+}
+
+const Header: React.FC<HeaderProps> = ({ isOnline }) => {
   const [boostTimeLeft, setBoostTimeLeft] = useState(0);
 
   useEffect(() => {
@@ -38,6 +41,11 @@ const Header: React.FC = () => {
             <BoostIcon className="w-4 h-4 text-secondary animate-pulse" />
             <span>{formatTime(boostTimeLeft)}</span>
           </div>
+        )}
+         {!isOnline && (
+            <div className="absolute left-4 text-xs font-bold text-white bg-gray-500 px-2 py-1 rounded-md">
+                Offline
+            </div>
         )}
       </div>
     </header>
