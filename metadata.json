@@ -1,0 +1,8 @@
+{
+  "name": "LoveLink - AI Dating",
+  "description": "A modern, AI-driven dating web application. This is Sprint 2, adding AI matchmaking with a personality quiz, AI-generated icebreakers, and WebRTC video chat capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
