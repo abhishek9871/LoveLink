@@ -32,15 +32,28 @@ let swipes: { userId: string, targetUserId: string, action: string, timestamp: n
 let reports: { reporterId: string, reportedId: string, reason: string, timestamp: number }[] = JSON.parse(localStorage.getItem('ll_reports') || '[]');
 let blocks: { blockerId: string, blockedId: string }[] = JSON.parse(localStorage.getItem('ll_blocks') || '[]');
 
+// Re-populate user.profile from profiles array to avoid data duplication in storage and prevent quota errors
+users.forEach(user => {
+    if (user && !user.profile) {
+        user.profile = profiles.find(p => p.userId === user.id) || null;
+    }
+});
+
 
 const saveToLocalStorage = () => {
-    localStorage.setItem('ll_users', JSON.stringify(users));
-    localStorage.setItem('ll_profiles', JSON.stringify(profiles));
-    localStorage.setItem('ll_matches', JSON.stringify(matches));
-    localStorage.setItem('ll_messages', JSON.stringify(messages));
-    localStorage.setItem('ll_swipes', JSON.stringify(swipes));
-    localStorage.setItem('ll_reports', JSON.stringify(reports));
-    localStorage.setItem('ll_blocks', JSON.stringify(blocks));
+    try {
+        // Create a copy of users with profile nulled out to save space in localStorage
+        const usersToStore = users.map(u => ({...u, profile: null}));
+        localStorage.setItem('ll_users', JSON.stringify(usersToStore));
+        localStorage.setItem('ll_profiles', JSON.stringify(profiles));
+        localStorage.setItem('ll_matches', JSON.stringify(matches));
+        localStorage.setItem('ll_messages', JSON.stringify(messages));
+        localStorage.setItem('ll_swipes', JSON.stringify(swipes));
+        localStorage.setItem('ll_reports', JSON.stringify(reports));
+        localStorage.setItem('ll_blocks', JSON.stringify(blocks));
+    } catch (e) {
+        console.error("Failed to save to localStorage. Quota may be exceeded.", e);
+    }
 }
 
 // --- MOCK DATA SEEDING ---
@@ -55,7 +68,7 @@ if (users.length === 0) {
 
     seedProfiles.forEach((p, i) => {
         const userId = `seed_user_${i+1}`;
-        const user: User = { id: userId, email: `${p.name.toLowerCase()}@example.com`, profileComplete: true, profile: null!, subscriptionTier: 'free', superLikes: 5, boosts: 1 };
+        const user: User = { id: userId, email: `${p.name.toLowerCase()}@example.com`, profileComplete: true, profile: null, subscriptionTier: 'free', superLikes: 5, boosts: 1 };
         const profile: Profile = { userId, vector: Array.from({length: 384}, () => Math.random()), ...p };
         user.profile = profile;
         users.push(user);
@@ -100,7 +113,7 @@ class MockApiService {
             id: `user_${Date.now()}`,
             email,
             profileComplete: false,
-            profile: null!,
+            profile: null,
             subscriptionTier: 'free',
             superLikes: 0,
             boosts: 0,
@@ -212,16 +225,27 @@ class MockApiService {
             const isSuperLike = matches.some(m => m.user1_id === p.userId && m.user2_id === userId && m.status === 'superlike');
             return {
                 ...p,
-                compatibilityScore: this._calculateQuizCompatibility(currentUser.profile.quizAnswers, p.quizAnswers),
+                compatibilityScore: this._calculateQuizCompatibility(currentUser.profile!.quizAnswers, p.quizAnswers),
                 isSuperLike,
             }
         });
 
         scoredProfiles.sort((a, b) => {
+            // Prioritize real users over demo users
+            if (a.isDemo && !b.isDemo) return 1;
+            if (!a.isDemo && b.isDemo) return -1;
+            
+            // Prioritize super likes
             if (a.isSuperLike && !b.isSuperLike) return -1;
             if (!a.isSuperLike && b.isSuperLike) return 1;
+            
+            // Prioritize boosted profiles
             const isBBoosted = users.find(u => u.id === b.userId && (u as any).boostActive);
-            if(isBBoosted) return 1;
+            if (isBBoosted) return 1;
+            const isABoosted = users.find(u => u.id === a.userId && (u as any).boostActive);
+            if (isABoosted) return -1;
+
+            // Fallback to compatibility score
             return b.compatibilityScore - a.compatibilityScore;
         });
 
@@ -496,10 +520,67 @@ class MockApiService {
     }> {
         await simulateNetworkDelay(800);
         return {
-            users: { dau: 1234, mau: 10432, newUsers: 56, retentionRate: 62.5 },
+            users: { dau: 1234 + profiles.filter(p => p.isDemo).length, mau: 10432 + profiles.filter(p => p.isDemo).length, newUsers: 56, retentionRate: 62.5 },
             revenue: { mrr: 24503, arpu: 2.35, ltv: 45.50, conversionRate: 8.2 },
             safety: { openReports: reports.length, avgResponseTimeHours: 6, moderationActions: 112 },
             system: { apiLatency: 180, errorRate: 0.8, uptime: 99.9 }
+        }
+    }
+
+    // --- SPRINT 5: Data Population ---
+    private async _generateDemoBio(name: string): Promise<string> {
+        await simulateNetworkDelay(50);
+        const intros = [`Hey, I'm ${name}.`, `${name} here.`, `Just a ${name} looking for a connection.`];
+        const hobbies = ['Love hiking on weekends.', 'Big foodie, always looking for the next great restaurant.', 'You can usually find me at a concert or a coffee shop.', 'Aspiring world traveler, where should we go first?', 'Always down for a good movie and a cozy night in.'];
+        const outros = ['Let\'s chat and see where it goes!', 'Send me a message if you\'re interested.', 'Looking for someone to share adventures with.', 'Swipe right if you have a cute dog.'];
+        return `${intros[Math.floor(Math.random() * intros.length)]} ${hobbies[Math.floor(Math.random() * hobbies.length)]} ${outros[Math.floor(Math.random() * outros.length)]}`;
+    }
+
+    async seedDemoProfiles(): Promise<{ success: boolean; message: string }> {
+        if (profiles.some(p => p.isDemo)) {
+            return { success: false, message: 'Demo profiles have already been seeded.' };
+        }
+        try {
+            const response = await fetch('https://randomuser.me/api/?results=50&inc=name,location,email,picture,dob,gender,phone&nat=us,gb,au,ca,nz&seed=lovelink');
+            if (!response.ok) throw new Error('Failed to fetch from Random User API');
+            
+            const data = await response.json();
+            const demoUsers = data.results;
+
+            for (const demoUser of demoUsers) {
+                const userId = `demo_${demoUser.email.replace(/[^a-zA-Z0-9]/g, '')}`;
+                if (users.some(u => u.id === userId)) continue;
+
+                const bio = await this._generateDemoBio(demoUser.name.first);
+                const interestsList = ['Travel', 'Cooking', 'Music', 'Hiking', 'Movies', 'Art', 'Fitness', 'Reading', 'Photography', 'Dogs'];
+                const userInterests = [...new Set(Array.from({ length: Math.floor(Math.random() * 3) + 2 }, () => interestsList[Math.floor(Math.random() * interestsList.length)]))];
+                const userQuizAnswers: Record<string, string> = {};
+                quizQuestions.forEach(q => {
+                    const options = Object.keys(q.options);
+                    userQuizAnswers[q.id] = options[Math.floor(Math.random() * options.length)];
+                });
+
+                const newProfile: Profile = {
+                    userId,
+                    name: `${demoUser.name.first}`,
+                    age: demoUser.dob.age,
+                    bio,
+                    location: `${demoUser.location.city}, ${demoUser.location.state}`,
+                    photos: [demoUser.picture.large],
+                    interests: userInterests,
+                    quizAnswers: userQuizAnswers,
+                    vector: Array.from({ length: 384 }, () => Math.random()),
+                    isDemo: true,
+                };
+                const newUser: User = { id: userId, email: demoUser.email, profileComplete: true, profile: newProfile, subscriptionTier: 'free', superLikes: 0, boosts: 0 };
+                users.push(newUser);
+                profiles.push(newProfile);
+            }
+            saveToLocalStorage();
+            return { success: true, message: `${demoUsers.length} demo profiles added successfully.` };
+        } catch (error: any) {
+            console.error("Failed to seed profiles:", error);
+            return { success: false, message: error.message || 'An error occurred while seeding.' };
         }
     }
 }

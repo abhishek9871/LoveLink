@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { SwipeProfile } from '../../types';
 import { HeartIcon, SuperlikeIcon } from '../icons';
@@ -21,16 +20,23 @@ const SwipeCard: React.FC<SwipeCardProps> = ({ profile, isActive }) => {
         )}
         <img src={profile.photos[0]} alt={profile.name} className="w-full h-full object-cover" />
         <div className="absolute top-0 w-full p-4 flex justify-between items-start">
-            {profile.compatibilityScore && (
-                 <div className="bg-white/80 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 text-green-600 font-bold text-sm w-fit">
-                    <HeartIcon className="w-4 h-4 text-green-500" />
-                    <span>{profile.compatibilityScore}% Compatible</span>
-                </div>
-            )}
-             {profile.isSuperLike && (
-                 <div className="bg-blue-500/80 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 text-white font-bold text-sm w-fit">
-                    <SuperlikeIcon className="w-4 h-4" />
-                    <span>Super Liked You!</span>
+            <div className="flex flex-col gap-2">
+                {profile.compatibilityScore && (
+                     <div className="bg-white/80 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 text-green-600 font-bold text-sm w-fit">
+                        <HeartIcon className="w-4 h-4 text-green-500" />
+                        <span>{profile.compatibilityScore}% Compatible</span>
+                    </div>
+                )}
+                 {profile.isSuperLike && (
+                     <div className="bg-blue-500/80 backdrop-blur-sm rounded-full px-3 py-1 flex items-center gap-1 text-white font-bold text-sm w-fit">
+                        <SuperlikeIcon className="w-4 h-4" />
+                        <span>Super Liked You!</span>
+                    </div>
+                )}
+            </div>
+            {profile.isDemo && (
+                <div className="bg-yellow-500/80 backdrop-blur-sm rounded-full px-3 py-1 text-white font-bold text-sm">
+                    Demo
                 </div>
             )}
         </div>

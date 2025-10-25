@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { mockApi } from '../services/api';
 import { AdminUserMetrics, AdminRevenueMetrics, AdminSafetyMetrics, AdminSystemHealth } from '../types';
-import { LogoIcon, AdminUsersIcon, AdminRevenueIcon, AdminSafetyIcon, AdminSystemIcon } from '../components/icons';
+import { LogoIcon, AdminUsersIcon, AdminRevenueIcon, AdminSafetyIcon, AdminSystemIcon, AdminDatabaseIcon } from '../components/icons';
 import Spinner from '../components/ui/Spinner';
+import Button from '../components/ui/Button';
 
 type AdminMetrics = {
     users: AdminUserMetrics;
@@ -27,6 +28,8 @@ const MetricCard: React.FC<{ title: string; value: string | number; subtext: str
 const AdminDashboardPage: React.FC = () => {
     const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
     const [loading, setLoading] = useState(true);
+    const [seeding, setSeeding] = useState(false);
+    const [seedMessage, setSeedMessage] = useState('');
 
     useEffect(() => {
         const fetchMetrics = async () => {
@@ -43,6 +46,22 @@ const AdminDashboardPage: React.FC = () => {
         fetchMetrics();
     }, []);
     
+    const handleSeedDatabase = async () => {
+        if (!window.confirm('Are you sure you want to seed the database with 50 demo profiles? This can only be done once.')) {
+            return;
+        }
+        setSeeding(true);
+        setSeedMessage('');
+        try {
+            const result = await mockApi.seedDemoProfiles();
+            setSeedMessage(result.message);
+        } catch (error: any) {
+            setSeedMessage(error.message || 'An error occurred.');
+        } finally {
+            setSeeding(false);
+        }
+    };
+
     if (loading) {
         return <div className="flex justify-center items-center h-screen"><Spinner /></div>;
     }
@@ -89,6 +108,20 @@ const AdminDashboardPage: React.FC = () => {
                     <MetricCard title="Error Rate" value={`${metrics.system.errorRate}%`} subtext="Last 24h" icon={<AdminSystemIcon className="w-6 h-6"/>} />
                 </div>
 
+                <h2 className="text-xl font-semibold flex items-center gap-2 pt-4"><AdminDatabaseIcon className="w-6 h-6" /> Database Management</h2>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                    <p className="text-text-secondary">Populate the database with realistic demo profiles to simulate an active user base. This is useful for testing and demonstrations.</p>
+                    <div className="mt-4">
+                        <Button onClick={handleSeedDatabase} isLoading={seeding} className="!w-auto">
+                            Seed Demo Profiles
+                        </Button>
+                        {seedMessage && (
+                            <p className={`mt-2 text-sm font-medium ${seedMessage.includes('successfully') ? 'text-success' : 'text-primary'}`}>
+                                {seedMessage}
+                            </p>
+                        )}
+                    </div>
+                </div>
             </section>
         </div>
     );

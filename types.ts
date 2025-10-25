@@ -4,7 +4,7 @@ export interface User {
   id: string;
   email: string;
   profileComplete: boolean;
-  profile: Profile;
+  profile: Profile | null;
   subscriptionTier: SubscriptionTier;
   superLikes: number;
   boosts: number;
@@ -20,6 +20,7 @@ export interface Profile {
   interests: string[];
   quizAnswers: Record<string, string>;
   vector?: number[];
+  isDemo?: boolean;
 }
 
 export interface Match {
