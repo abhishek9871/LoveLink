@@ -605,6 +605,7 @@ class MockApiService {
                 profiles.push(newProfile);
             }
             saveToLocalStorage();
+            window.dispatchEvent(new Event('profilesSeeded'));
             return { success: true, message: `${demoUsers.length} demo profiles added successfully.` };
         } catch (error: any) {
             console.error("Failed to seed profiles:", error);
@@ -614,3 +615,4 @@ class MockApiService {
 }
 
 export const mockApi = new MockApiService();
+(window as any).mockApi = mockApi;

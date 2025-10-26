@@ -40,7 +40,15 @@ const DiscoverPage: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    console.log('User object in DiscoverPage:', user);
     fetchProfiles();
+
+    const handleProfilesSeeded = () => fetchProfiles();
+    window.addEventListener('profilesSeeded', handleProfilesSeeded);
+
+    return () => {
+      window.removeEventListener('profilesSeeded', handleProfilesSeeded);
+    };
   }, [fetchProfiles]);
 
   const handleSwipe = async (action: 'like' | 'pass' | 'superlike') => {
